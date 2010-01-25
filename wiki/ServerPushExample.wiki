@@ -2,10 +2,12 @@
 #labels serverpush
 
 =Summary=
- * Annotate server push service methods with @ServerPushEnabled
- * Service extends WsRpcService (instead of RpcService)
- * Async Service method returns Request
- * Server implementation extends WsRpcServlet (instead of RpcServlet)
+This example assumes you already understand the basics of the [http://code.google.com/webtoolkit/doc/latest/DevGuideServerCommunication.html GWT RPC Framework].
+
+ # Sync service extends WsRpcService (instead of RpcService)
+ # Annotate sync service server push service methods with @ServerPushEnabled
+ # Async Service method return type must be Request type
+ # Server implementation extends WsRpcServlet (instead of RpcServlet)
 
 =Service=
 {{{
