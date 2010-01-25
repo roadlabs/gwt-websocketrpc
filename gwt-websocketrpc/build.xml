@@ -10,7 +10,7 @@
     </target>
 
     <target name="package-dependency-jar">
-        <jar jarfile="export/gwt-websocketrpc.jar" update="yes">
+        <jar jarfile="export/gwt-websocketrpc.jar" update="no">
             <zipfileset dir="bin">
                 <include name="org/gwt_websocketrpc/**/*" />
             </zipfileset>
@@ -21,7 +21,7 @@
     </target>
 
     <target name="package-servlet-jar">
-        <jar jarfile="export/gwt-websocketrpc-servlet.jar" update="yes">
+        <jar jarfile="export/gwt-websocketrpc-servlet.jar" update="no">
             <zipfileset dir="bin">
                 <include name="org/gwt_websocketrpc/server/**/*.class" />
                 <include name="org/gwt_websocketrpc/shared/**/*.class" />
