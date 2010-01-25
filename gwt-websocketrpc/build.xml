@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="gwt-websocketrpc" default="build">
+    <target name="compile">
+        <javac srcdir="src" destdir="bin" source="6.0">
+            <classpath>
+                <pathelement location="lib/" />
+            </classpath>
+        </javac>
+
+    </target>
+
+    <target name="package-dependency-jar">
+        <jar jarfile="export/gwt-websocketrpc.jar" update="yes">
+            <zipfileset dir="bin">
+                <include name="org/gwt_websocketrpc/**/*" />
+            </zipfileset>
+            <zipfileset dir="src">
+                <include name="org/gwt_websocketrpc/**/*" />
+            </zipfileset>
+        </jar>
+    </target>
+
+    <target name="package-servlet-jar">
+        <jar jarfile="export/gwt-websocketrpc-servlet.jar" update="yes">
+            <zipfileset dir="bin">
+                <include name="org/gwt_websocketrpc/server/**/*.class" />
+                <include name="org/gwt_websocketrpc/shared/**/*.class" />
+            </zipfileset>
+            <zipfileset dir="src">
+                <include name="org/gwt_websocketrpc/server/**/*.java" />
+                <include name="org/gwt_websocketrpc/shared/**/*.java" />
+            </zipfileset>
+        </jar>
+    </target>
+
+    <target name="build"
+        depends="compile,
+                     package-dependency-jar,
+                     package-servlet-jar"
+        description="Builds gwt-websocketrpc and gwt-websocketrpc-servlet jars" />
+</project>
