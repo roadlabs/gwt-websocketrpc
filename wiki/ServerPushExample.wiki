@@ -1,5 +1,5 @@
 #summary Simple server push example using gwt-websocketrpc
-#labels serverpush
+#labels serverpush,Featured
 
 =Summary=
 This example assumes you already understand the basics of the [http://code.google.com/webtoolkit/doc/latest/DevGuideServerCommunication.html GWT RPC Framework].
