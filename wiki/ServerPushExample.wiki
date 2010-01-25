@@ -4,10 +4,16 @@
 =Summary=
 This example assumes you already understand the basics of the [http://code.google.com/webtoolkit/doc/latest/DevGuideServerCommunication.html GWT RPC Framework].
 
+ # Add {{{org.gwt_websocketrpc.Gwt_websocketrpc}}} to your module
  # Sync service extends WsRpcService (instead of RpcService)
  # Annotate sync service server push service methods with @ServerPushEnabled
  # Async Service method return type must be Request type
  # Server implementation extends WsRpcServlet (instead of RpcServlet)
+
+=Module XML=
+{{{
+<inherits name='org.gwt_websocketrpc.Gwt_websocketrpc' />
+}}}
 
 =Service=
 {{{
