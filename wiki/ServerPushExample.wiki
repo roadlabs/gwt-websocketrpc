@@ -1,4 +1,4 @@
-#summary Server Push Example using gwt-websocketrpc
+#summary Simple server push example using gwt-websocketrpc
 #labels serverpush
 
 =Summary=
