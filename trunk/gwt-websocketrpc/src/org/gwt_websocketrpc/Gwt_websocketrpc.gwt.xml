@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module rename-to='gwt_websocketrpc'>
+    <inherits name='com.google.gwt.rpc.RPC' />
+    <source path='client' />
+    <source path='shared' />
+
+    <!-- Add Generator for WsRpcService sub interfaces  -->
+    <generate-with class="org.gwt_websocketrpc.rebind.WsRpcServiceGenerator">
+        <any>
+            <when-type-assignable
+                class="org.gwt_websocketrpc.shared.WsRpcService" />
+        </any>
+    </generate-with>
+</module>
