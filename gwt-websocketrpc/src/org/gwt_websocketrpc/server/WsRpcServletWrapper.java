@@ -31,9 +31,11 @@ class WsRpcServletWrapper extends RpcServlet implements WebSocket {
     private static class RequestWrapper extends HttpServletRequestWrapper {
         private String permStrongName;
         private String reqModuleBasePath;
+        private final String contextPath;
 
         public RequestWrapper(HttpServletRequest request) {
             super(request);
+            contextPath = request.getContextPath();
         }
 
         void setPermStrongName(String permStrongName) {
@@ -50,9 +52,14 @@ class WsRpcServletWrapper extends RpcServlet implements WebSocket {
                     .equals(MODULE_BASE_HEADER)) ? reqModuleBasePath : super
                     .getHeader(name);
         }
+
+        @Override
+        public String getContextPath() {
+            return contextPath;
+        }
     }
 
-    private final Map<Integer, HandlerCallback> reqCallbackMap = new ConcurrentHashMap<Integer, HandlerCallback>();
+    private final Map<Integer, PushCallback> reqCallbackMap = new ConcurrentHashMap<Integer, PushCallback>();
 
     private boolean[] wsInitialized = { false };
     private final WsRpcServletWrapper.RequestWrapper wrapReq;
@@ -62,10 +69,10 @@ class WsRpcServletWrapper extends RpcServlet implements WebSocket {
     private Outbound o;
     private ClientOracle oracle;
 
-    private final ThreadLocal<HandlerCallback[]> tlrcb;
+    private final ThreadLocal<PushCallback[]> tlrcb;
 
     public WsRpcServletWrapper(ServletConfig sc,
-            ThreadLocal<HandlerCallback[]> tlrcb, Object instance,
+            ThreadLocal<PushCallback[]> tlrcb, Object instance,
             HttpServletRequest req) {
         assert sc != null;
         assert instance != null;
@@ -216,7 +223,7 @@ class WsRpcServletWrapper extends RpcServlet implements WebSocket {
                     oracle);
             onAfterRequestDeserialized(rpcRequest);
 
-            final HandlerCallback[] cb = tlrcb.get();
+            final PushCallback[] cb = tlrcb.get();
             try {
                 cb[0] = new HandlerCallbackImpl(oracle, rpcRequest.getMethod(),
                         o, rid);

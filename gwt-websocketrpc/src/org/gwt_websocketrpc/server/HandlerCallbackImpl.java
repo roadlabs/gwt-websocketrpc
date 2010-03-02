@@ -12,7 +12,7 @@ import com.google.gwt.rpc.server.ClientOracle;
 import com.google.gwt.rpc.server.RPC;
 import com.google.gwt.user.client.rpc.SerializationException;
 
-class HandlerCallbackImpl implements HandlerCallback {
+class HandlerCallbackImpl implements PushCallback {
     private final Outbound out;
     private final int requestid;
     private final ClientOracle oracle;
