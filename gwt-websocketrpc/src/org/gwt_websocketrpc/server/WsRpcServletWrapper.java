@@ -59,7 +59,7 @@ class WsRpcServletWrapper extends RpcServlet implements WebSocket {
         }
     }
 
-    private final Map<Integer, PushCallback> reqCallbackMap = new ConcurrentHashMap<Integer, PushCallback>();
+    private final Map<Integer, PushCallback<?>> reqCallbackMap = new ConcurrentHashMap<Integer, PushCallback<?>>();
 
     private boolean[] wsInitialized = { false };
     private final WsRpcServletWrapper.RequestWrapper wrapReq;
@@ -69,10 +69,10 @@ class WsRpcServletWrapper extends RpcServlet implements WebSocket {
     private Outbound o;
     private ClientOracle oracle;
 
-    private final ThreadLocal<PushCallback[]> tlrcb;
+    private final ThreadLocal<PushCallback<?>[]> tlrcb;
 
     public WsRpcServletWrapper(ServletConfig sc,
-            ThreadLocal<PushCallback[]> tlrcb, Object instance,
+            ThreadLocal<PushCallback<?>[]> tlrcb, Object instance,
             HttpServletRequest req) {
         assert sc != null;
         assert instance != null;
@@ -225,8 +225,11 @@ class WsRpcServletWrapper extends RpcServlet implements WebSocket {
 
             final PushCallback[] cb = tlrcb.get();
             try {
-                cb[0] = new HandlerCallbackImpl(oracle, rpcRequest.getMethod(),
-                        o, rid);
+                cb[0] = new HandlerCallbackImpl(
+                          rpcRequest.getMethod().getReturnType(), 
+                          oracle, 
+                          rpcRequest.getMethod(),
+                          o, rid);
 
                 // Add new request -> handler callback entry
                 reqCallbackMap.put(rid, cb[0]);

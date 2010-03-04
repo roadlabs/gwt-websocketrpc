@@ -4,7 +4,7 @@ import java.io.IOException;
 
 import com.google.gwt.user.client.rpc.SerializationException;
 
-public interface PushCallback {
-    public void call(Object responseObject) throws SerializationException,
-            IOException;
+public interface PushCallback<T> {
+  Class<T> getResponseType();
+  void call(T responseObject) throws SerializationException, IOException;
 }

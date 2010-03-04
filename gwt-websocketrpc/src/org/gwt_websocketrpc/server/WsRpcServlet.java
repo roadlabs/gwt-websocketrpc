@@ -8,20 +8,22 @@ import org.eclipse.jetty.websocket.WebSocketServlet;
 @SuppressWarnings("serial")
 public class WsRpcServlet extends WebSocketServlet {
 
-    private final ThreadLocal<PushCallback[]> threadHandlerCallback = new ThreadLocal<PushCallback[]>() {
-        @Override
-        protected PushCallback[] initialValue() {
-            return new PushCallback[1];
-        }
-    };
-
+  private final ThreadLocal<PushCallback<?>[]> threadHandlerCallback = new ThreadLocal<PushCallback<?>[]>() {
     @Override
-    protected WebSocket doWebSocketConnect(HttpServletRequest arg0, String arg1) {
-        return new WsRpcServletWrapper(getServletConfig(),
-                threadHandlerCallback, this, arg0);
+    protected PushCallback<?>[] initialValue() {
+      return new PushCallback[1];
     }
+  };
 
-    protected final PushCallback getPushCallback() {
-        return threadHandlerCallback.get()[0];
+  @Override
+  protected WebSocket doWebSocketConnect(HttpServletRequest arg0, String arg1) {
+    return new WsRpcServletWrapper(getServletConfig(), threadHandlerCallback,
+        this, arg0);
+  }
+
+  protected final <T> PushCallback<T> getPushCallback(Class<T> respType) {
+    return (threadHandlerCallback.get()[0].getResponseType() == respType) 
+        ? (PushCallback<T>) threadHandlerCallback.get()[0]
+        : null;
     }
 }
