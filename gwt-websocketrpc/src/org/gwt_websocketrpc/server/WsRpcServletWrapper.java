@@ -3,6 +3,7 @@ package org.gwt_websocketrpc.server;
 import static com.google.gwt.user.client.rpc.RpcRequestBuilder.MODULE_BASE_HEADER;
 import static com.google.gwt.user.client.rpc.RpcRequestBuilder.STRONG_NAME_HEADER;
 import static org.gwt_websocketrpc.shared.WsRpcConstants.WsRpcControlString;
+import static org.gwt_websocketrpc.server.ServerUtils.d;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,248 +27,245 @@ import com.google.gwt.user.client.rpc.SerializationException;
 import com.google.gwt.user.server.rpc.RPCRequest;
 import com.google.gwt.user.server.rpc.UnexpectedException;
 
+@SuppressWarnings("serial")
 class WsRpcServletWrapper extends RpcServlet implements WebSocket {
 
-    private static class RequestWrapper extends HttpServletRequestWrapper {
-        private String permStrongName;
-        private String reqModuleBasePath;
-        private final String contextPath;
+  private static class RequestWrapper extends HttpServletRequestWrapper {
+    private String permStrongName;
+    private String reqModuleBasePath;
+    private final String contextPath;
 
-        public RequestWrapper(HttpServletRequest request) {
-            super(request);
-            contextPath = request.getContextPath();
-        }
-
-        void setPermStrongName(String permStrongName) {
-            this.permStrongName = permStrongName;
-        }
-
-        void setReqModuleBasePath(String reqModuleBasePath) {
-            this.reqModuleBasePath = reqModuleBasePath;
-        }
-
-        @Override
-        public String getHeader(final String name) {
-            return (name.equals(STRONG_NAME_HEADER)) ? permStrongName : (name
-                    .equals(MODULE_BASE_HEADER)) ? reqModuleBasePath : super
-                    .getHeader(name);
-        }
-
-        @Override
-        public String getContextPath() {
-            return contextPath;
-        }
+    public RequestWrapper(HttpServletRequest request) {
+      super(request);
+      contextPath = request.getContextPath();
     }
 
-    private final Map<Integer, PushCallback<?>> reqCallbackMap = new ConcurrentHashMap<Integer, PushCallback<?>>();
+    void setPermStrongName(String permStrongName) {
+      this.permStrongName = permStrongName;
+    }
 
-    private boolean[] wsInitialized = { false };
-    private final WsRpcServletWrapper.RequestWrapper wrapReq;
+    void setReqModuleBasePath(String reqModuleBasePath) {
+      this.reqModuleBasePath = reqModuleBasePath;
+    }
 
-    private final Class serviceClass;
-    private final Object serviceInst;
-    private Outbound o;
-    private ClientOracle oracle;
+    @Override
+    public String getHeader(final String name) {
+      return (name.equals(STRONG_NAME_HEADER)) ? permStrongName : (name
+          .equals(MODULE_BASE_HEADER)) ? reqModuleBasePath : super
+          .getHeader(name);
+    }
 
-    private final ThreadLocal<PushCallback<?>[]> tlrcb;
+    @Override
+    public String getContextPath() {
+      return contextPath;
+    }
+  }
 
-    public WsRpcServletWrapper(ServletConfig sc,
-            ThreadLocal<PushCallback<?>[]> tlrcb, Object instance,
-            HttpServletRequest req) {
-        assert sc != null;
-        assert instance != null;
-        assert tlrcb != null;
-        assert req != null;
+  private final Map<Integer, PushCallbackImpl<?>> reqCallbackMap = new ConcurrentHashMap<Integer, PushCallbackImpl<?>>();
+
+  private boolean[] wsInitialized = { false };
+  private final WsRpcServletWrapper.RequestWrapper wrapReq;
+
+  private final Class serviceClass;
+  private final Object serviceInst;
+  private Outbound o;
+  private ClientOracle oracle;
+
+  private final ThreadLocal<PushCallbackImpl<?>[]> tlrcb;
+
+  public WsRpcServletWrapper(ServletConfig sc,
+      ThreadLocal<PushCallbackImpl<?>[]> tlrcb, Object instance,
+      HttpServletRequest req) {
+    assert sc != null;
+    assert instance != null;
+    assert tlrcb != null;
+    assert req != null;
+
+    try {
+      init(sc);
+    } catch (ServletException e) {
+      e.printStackTrace();
+    }
+
+    this.tlrcb = tlrcb;
+    this.serviceInst = instance;
+    this.serviceClass = instance.getClass();
+
+    this.wrapReq = new RequestWrapper(req);
+
+    validateThreadLocalData();
+  }
+
+  public void onConnect(Outbound arg0) {
+    d("onConnect");
+    o = arg0;
+  }
+
+  public void onDisconnect() {
+    d("onDisconnect");
+    o = null;
+  }
+
+  private void validateThreadLocalData() {
+    if (perThreadRequest == null) {
+      perThreadRequest = new ThreadLocal<HttpServletRequest>();
+    }
+    if (perThreadResponse == null) {
+      perThreadResponse = new ThreadLocal<HttpServletResponse>();
+    }
+  }
+
+  public void onMessage(byte arg0, byte[] arg1, int arg2, int arg3) {
+  }
+
+  public void onMessage(byte arg0, String arg1) {
+    d("onMessage:");
+    d(arg1);
+    d("\n");
+
+    // First message encodes Strong Name and Module Base Path.
+    // (Needs to be synchronized in case multiple messages
+    // are received at the sametime)
+    synchronized (wsInitialized) {
+      if (!wsInitialized[0]) {
+        final int snId = arg1.indexOf('!');
+
+        // Usually these pieces of information are captured
+        // from the HTTPServletRequest Headers of XHRs:
+        // 1)
+        // com.google.gwt.user.client.rpc.RpcRequestBuilder.STRONG_NAME_HEADER
+        // 2)
+        // com.google.gwt.user.client.rpc.RpcRequestBuilder.MODULE_BASE_HEADER
+
+        // Instead we'll just grab it from the WebSocket message.
+        final String permStrongName = arg1.substring(0, snId);
+        final String reqModuleBasePath = arg1.substring(snId + 1);
+
+        wrapReq.setPermStrongName(permStrongName);
+        wrapReq.setReqModuleBasePath(reqModuleBasePath);
+
+        d("init message: [permStrongName='" + permStrongName
+            + "', reqModuleBasePath'" + reqModuleBasePath + "']");
 
         try {
-            init(sc);
-        } catch (ServletException e) {
-            e.printStackTrace();
-        }
+          // Unfortunate...
+          perThreadRequest.set(wrapReq);
 
-        this.tlrcb = tlrcb;
-        this.serviceInst = instance;
-        this.serviceClass = instance.getClass();
-
-        this.wrapReq = new RequestWrapper(req);
-
-        validateThreadLocalData();
-    }
-
-    public void onConnect(Outbound arg0) {
-        o = arg0;
-        ServerUtils.d("onConnect");
-    }
-
-    public void onDisconnect() {
-        ServerUtils.d("onDisconnect");
-        o = null;
-    }
-
-    private void validateThreadLocalData() {
-        if (perThreadRequest == null) {
-            perThreadRequest = new ThreadLocal<HttpServletRequest>();
-        }
-        if (perThreadResponse == null) {
-            perThreadResponse = new ThreadLocal<HttpServletResponse>();
-        }
-    }
-
-    public void onMessage(byte arg0, byte[] arg1, int arg2, int arg3) {
-    }
-
-    public void onMessage(byte arg0, String arg1) {
-        ServerUtils.d("onMessage:");
-        ServerUtils.d(arg1);
-        ServerUtils.d("\n");
-
-        // First message encodes Strong Name and Module Base Path.
-        // (Needs to be synchronized in case multiple messages
-        // are received at the sametime)
-        synchronized (wsInitialized) {
-            if (!wsInitialized[0]) {
-                final int snId = arg1.indexOf('!');
-
-                // Usually these pieces of information are captured
-                // from the HTTPServletRequest Headers of XHRs:
-                // 1)
-                // com.google.gwt.user.client.rpc.RpcRequestBuilder.STRONG_NAME_HEADER
-                // 2)
-                // com.google.gwt.user.client.rpc.RpcRequestBuilder.MODULE_BASE_HEADER
-
-                // Instead we'll just grab it from the WebSocket message.
-                final String permStrongName = arg1.substring(0, snId);
-                final String reqModuleBasePath = arg1.substring(snId + 1);
-
-                wrapReq.setPermStrongName(permStrongName);
-                wrapReq.setReqModuleBasePath(reqModuleBasePath);
-
-                ServerUtils.d("init message: [permStrongName='"
-                        + permStrongName + "', reqModuleBasePath'"
-                        + reqModuleBasePath + "']");
-
-                try {
-                    // Unfortunate...
-                    perThreadRequest.set(wrapReq);
-
-                    oracle = getClientOracle();
-                    wsInitialized[0] = true;
-                } catch (Throwable e) {
-                    // Give a subclass a chance to either handle the exception
-                    // or
-                    // rethrow it
-                    //
-                    doUnexpectedFailure(e);
-                } finally {
-                    // null the thread-locals to avoid holding request/response
-                    //
-                    perThreadRequest.set(null);
-                }
-
-                return;
-            }
-        }
-
-        // ... Subsequent messages
-        try {
-            synchronized (this) {
-                perThreadRequest.set(wrapReq);
-            }
-
-            // Parse Request id
-            int lastCtrlCharId = arg1.indexOf('!');
-            final int rid = Integer.parseInt(arg1.substring(0, lastCtrlCharId),
-                    16);
-
-            // RPC call?
-            if (arg1.charAt(lastCtrlCharId + 1) != '!') {
-
-                processRequest(rid, arg1.substring(lastCtrlCharId + 1));
-
-                // RPC cancel?
-            } else {
-                ++lastCtrlCharId;
-            }
-
+          oracle = getClientOracle();
+          wsInitialized[0] = true;
         } catch (Throwable e) {
-            e.printStackTrace();
-
-            // Give a subclass a chance to either handle the exception or
-            // rethrow it
-            //
-            doUnexpectedFailure(e);
+          // Give a subclass a chance to either handle the exception
+          // or
+          // rethrow it
+          //
+          doUnexpectedFailure(e);
         } finally {
-            // null the thread-locals to avoid holding request/response
-            //
-            perThreadRequest.set(null);
+          // null the thread-locals to avoid holding request/response
+          //
+          perThreadRequest.set(null);
         }
 
+        return;
+      }
     }
 
-    protected void processRequest(final int rid, String msg)
-            throws SerializationException, IOException {
-        final ClassLoader oldcl = Thread.currentThread()
-                .getContextClassLoader();
+    // ... Subsequent messages
+    try {
+      synchronized (this) {
+        perThreadRequest.set(wrapReq);
+      }
 
-        final WsOutboundStream os = new WsOutboundStream(o);
-        try {
-            // Set the TCCL...
-            // Possibly a bug in Jetty, WebSocketServlet's appear
-            // to have the incorrect TCCL set. The Java App
-            // ClassLoader is set, as opposed to the WebApp's
-            // ClassLoader (More investigation is necessary).
-            Thread.currentThread().setContextClassLoader(
-                    serviceClass.getClassLoader());
+      // Parse Request id
+      int lastCtrlCharId = arg1.indexOf('!');
+      final int rid = Integer.parseInt(arg1.substring(0, lastCtrlCharId), 16);
 
-            final RPCRequest rpcRequest = RPC.decodeRequest(msg, serviceClass,
-                    oracle);
-            onAfterRequestDeserialized(rpcRequest);
+      // RPC request?
+      if (arg1.charAt(lastCtrlCharId + 1) != '!') {
 
-            final PushCallback[] cb = tlrcb.get();
-            try {
-                cb[0] = new HandlerCallbackImpl(
-                          rpcRequest.getMethod().getReturnType(), 
-                          oracle, 
-                          rpcRequest.getMethod(),
-                          o, rid);
+        processRequest(rid, arg1.substring(lastCtrlCharId + 1));
 
-                // Add new request -> handler callback entry
-                reqCallbackMap.put(rid, cb[0]);
+      // RPC cancel?
+      } else {
+        final PushCallbackImpl cb = reqCallbackMap.remove(rid);
+        if (cb != null)
+          cb.cancel();
+        else
+          d("Cancel received for unknown request id = "+rid);
+      }
 
-                // Prefix response with Request ID
-                os.write((Integer.toHexString(rid) + WsRpcControlString)
-                        .getBytes());
+    } catch (Throwable e) {
+      e.printStackTrace();
 
-                // Send
-                RPC.invokeAndStreamResponse(serviceInst,
-                        rpcRequest.getMethod(), rpcRequest.getParameters(),
-                        oracle, os);
-
-                os.flush();
-            } catch (UnexpectedException e) {
-
-                // Allow Async Callback for handlers
-                if (e.getCause().getClass() != ResponseSentLater.class)
-                    throw e;
-
-            } finally {
-                cb[0] = null;
-            }
-
-        } catch (RemoteException ex) {
-            throw new SerializationException(
-                    "An exception was sent from the client", ex.getCause());
-
-        } catch (IncompatibleRemoteServiceException ex) {
-            log(
-                    "An IncompatibleRemoteServiceException was thrown while processing this call.",
-                    ex);
-            RPC.streamResponseForFailure(oracle, os, ex);
-
-        } finally {
-            // Reset the TCCL
-            Thread.currentThread().setContextClassLoader(oldcl);
-        }
+      // Give a subclass a chance to either handle the exception or
+      // rethrow it
+      //
+      doUnexpectedFailure(e);
+    } finally {
+      // null the thread-locals to avoid holding request/response
+      //
+      perThreadRequest.set(null);
     }
+
+  }
+
+  protected void processRequest(final int rid, String msg)
+      throws SerializationException, IOException {
+    final ClassLoader oldcl = Thread.currentThread().getContextClassLoader();
+
+    final WsOutboundStream os = new WsOutboundStream(o);
+    try {
+      // Set the TCCL...
+      // Possibly a bug in Jetty, WebSocketServlet's appear
+      // to have the incorrect TCCL set. The Java App
+      // ClassLoader is set, as opposed to the WebApp's
+      // ClassLoader (More investigation is necessary).
+      Thread.currentThread().setContextClassLoader(
+          serviceClass.getClassLoader());
+
+      final RPCRequest rpcRequest = RPC
+          .decodeRequest(msg, serviceClass, oracle);
+      onAfterRequestDeserialized(rpcRequest);
+
+      final PushCallbackImpl<?>[] cb = tlrcb.get();
+      try {
+        cb[0] = new PushCallbackImpl(rpcRequest.getMethod().getReturnType(),
+            oracle, rpcRequest.getMethod(), o, rid);
+
+        // Add new request -> handler callback entry
+        reqCallbackMap.put(rid, cb[0]);
+
+        // Prefix response with Request ID
+        os.write((Integer.toHexString(rid) + WsRpcControlString).getBytes());
+
+        // Send
+        RPC.invokeAndStreamResponse(serviceInst, rpcRequest.getMethod(),
+            rpcRequest.getParameters(), oracle, os);
+
+        os.flush();
+      } catch (UnexpectedException e) {
+
+        // Allow Async Callback for handlers
+        if (e.getCause().getClass() != ResponseSentLater.class)
+          throw e;
+
+      } finally {
+        cb[0] = null;
+      }
+
+    } catch (RemoteException ex) {
+      throw new SerializationException("An exception was sent from the client",
+          ex.getCause());
+
+    } catch (IncompatibleRemoteServiceException ex) {
+      log(
+          "An IncompatibleRemoteServiceException was thrown while processing this call.",
+          ex);
+      RPC.streamResponseForFailure(oracle, os, ex);
+
+    } finally {
+      // Reset the TCCL
+      Thread.currentThread().setContextClassLoader(oldcl);
+    }
+  }
 
 }

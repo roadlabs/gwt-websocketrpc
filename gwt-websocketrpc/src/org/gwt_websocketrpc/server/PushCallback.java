@@ -1,10 +1,9 @@
 package org.gwt_websocketrpc.server;
 
-import java.io.IOException;
+import com.google.gwt.user.client.rpc.AsyncCallback;
 
-import com.google.gwt.user.client.rpc.SerializationException;
 
-public interface PushCallback<T> {
+public interface PushCallback<T> extends AsyncCallback<T> {
   Class<T> getResponseType();
-  void call(T responseObject) throws SerializationException, IOException;
+  boolean isCanceled();
 }

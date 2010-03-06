@@ -8,10 +8,10 @@ import org.eclipse.jetty.websocket.WebSocketServlet;
 @SuppressWarnings("serial")
 public class WsRpcServlet extends WebSocketServlet {
 
-  private final ThreadLocal<PushCallback<?>[]> threadHandlerCallback = new ThreadLocal<PushCallback<?>[]>() {
+  private final ThreadLocal<PushCallbackImpl<?>[]> threadHandlerCallback = new ThreadLocal<PushCallbackImpl<?>[]>() {
     @Override
-    protected PushCallback<?>[] initialValue() {
-      return new PushCallback[1];
+    protected PushCallbackImpl<?>[] initialValue() {
+      return new PushCallbackImpl[1];
     }
   };
 
